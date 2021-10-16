@@ -1,0 +1,22 @@
+FROM node:12.22.6 AS package
+
+RUN npm install openzeppelin-solidity@1.12.0
+
+
+FROM node:alpine
+
+USER node
+
+RUN mkdir -p /home/node/app
+WORKDIR /home/node/app
+
+COPY --chown=node:node ./ ./
+COPY --from=package ./node_modules ./node_modules
+
+USER root
+
+RUN apk add --no-cache \
+	libc6-compat \
+	make
+
+RUN npm install -g truffle

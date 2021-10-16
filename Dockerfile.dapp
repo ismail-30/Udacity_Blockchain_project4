@@ -1,0 +1,14 @@
+FROM ismail-30/trufflemigrate:latest AS builder
+
+FROM python:3.6.15-alpine3.13
+
+RUN apk add --update nodejs nodejs-npm
+
+RUN mkdir -p /home/node/app
+WORKDIR /home/node/app
+
+COPY  ./package.json ./
+COPY --from=builder /home/node/app/build ./build
+
+RUN npm install
+COPY ./ ./
