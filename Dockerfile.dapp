@@ -1,4 +1,4 @@
-FROM ismail-30/trufflemigrate:latest AS builder
+FROM ismail-30/trufflecompile:latest AS builder
 
 FROM python:3.6.15-alpine3.13
 

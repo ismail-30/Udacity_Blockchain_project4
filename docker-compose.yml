@@ -5,11 +5,6 @@ services:
     command: "truffle migrate --reset"
     depends_on:
       - "ganache"
-## smart-contract-test:
-##    image: ismail-30/trufflemigrate:latest
-##    command: "truffle test"
-##    depends_on:
-##      - "ganache"
   ganache:
     image: trufflesuite/ganache-cli
     ports:
