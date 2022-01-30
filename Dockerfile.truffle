@@ -1,17 +1,9 @@
-FROM node:alpine
-
-USER node
+FROM node
 
 RUN mkdir -p /home/node/app
 WORKDIR /home/node/app
 
-COPY --chown=node:node ./ ./
-
-USER root
-
-RUN apk add --no-cache \
-	libc6-compat \
-	make
+COPY ./ ./
 
 RUN npm install -g truffle
 RUN npm install

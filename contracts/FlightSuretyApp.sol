@@ -38,19 +38,20 @@ contract FlightSuretyApp {
     mapping(address => uint256) public votesPerAirline;
     mapping(address => mapping(address => bool)) public hasVoted;
     mapping(address => bool) public isInQueue;
+    mapping(address => string) public airlineNames;
 
     /********************************************************************************************/
     /*                                       Events                                             */
     /********************************************************************************************/
 
     event AirlineAddedToRegisterationQueue(address indexed airline, uint256 votesRatio);
-    event AirlineRegistered(address indexed airline, uint256 votes);
+    event AirlineRegisteredWithoutVotes(address indexed airline);
+    event AirlineRegisteredWithVotes(address indexed airline, uint256 votes);
     event AirlineVoted(address indexed airlineVoting, address indexed airlineVoted);
     event AirlineFullyFunded(address indexed airline, uint256 value);
     event FlightRegistered(address indexed airline, string flightNumber, string timeStamp);
     event PassengerRegistered(address indexed passenger, string name, address airlineAddress, bytes32 key);
     event InsurancePurchased(address indexed passenger, bytes32 flightNumber, uint256 amount);
-
  
     /********************************************************************************************/
     /*                                       FUNCTION MODIFIERS                                 */
@@ -87,18 +88,12 @@ contract FlightSuretyApp {
         _;
     }
 
-    modifier onlyParticipatedAirline(){
-        bool canParticipate;
-        (,,canParticipate,) = flightData.getAirlineData(msg.sender);
-        require(canParticipate, "Airline has not participated yet");
-        _;
-    }
 
     modifier addressNotUsed(address _address){
         bool isAirlineRegistered;
         bool isPassengerRegistered;
-        (,isAirlineRegistered,,)= flightData.getAirlineData(msg.sender);
-        (,isPassengerRegistered,) = flightData.getPassengerData(msg.sender);
+        (,isAirlineRegistered,,)= flightData.getAirlineData(_address);
+        (,isPassengerRegistered,) = flightData.getPassengerData(_address);
         require(!isAirlineRegistered, "This address is already taken by another airline");
         require(!isPassengerRegistered, "This address is already taken by another passenger");
         _;
@@ -198,18 +193,22 @@ contract FlightSuretyApp {
     onlyRegisteredAirline
     addressNotUsed(airlineAddress)
     {
-        if (flightData.numRegisteredAirlines() <= CONSENSUS) {
+        bool check = flightData.numRegisteredAirlines() < CONSENSUS;
+        if (check) {
             flightData.registerAirline(name, airlineAddress);
-            emit AirlineRegistered(airlineAddress, 1);
+            airlineNames[airlineAddress] = name;
+            emit AirlineRegisteredWithoutVotes(airlineAddress);
         } else {
-            uint256 votesRatio;
-            votesRatio = votesPerAirline[airlineAddress].div(flightData.numRegisteredAirlines());
-            if (votesRatio.mul(100) >= 50) {
+            uint256 votesPercentage;
+            votesPercentage = votesPerAirline[airlineAddress].mul(100).div(flightData.numRegisteredAirlines());
+            if (votesPercentage >= 50) {
                 flightData.registerAirline(name, airlineAddress);
-                emit AirlineRegistered(airlineAddress, votesPerAirline[airlineAddress]);
+                airlineNames[airlineAddress] = name;
+                emit AirlineRegisteredWithVotes(airlineAddress, votesPerAirline[airlineAddress]);
             } else {
                 isInQueue[airlineAddress] = true;
-                emit AirlineAddedToRegisterationQueue(airlineAddress, votesRatio);
+                airlineNames[airlineAddress] = name;
+                emit AirlineAddedToRegisterationQueue(airlineAddress, votesPercentage);
             }
         }
     }
@@ -222,24 +221,49 @@ contract FlightSuretyApp {
     hasNotAlreadyVoted(airlineAddress)
     onlyInQueue(airlineAddress)
     {
+
+        bool canParticipate;
+        (,,canParticipate,) = flightData.getAirlineData(msg.sender);
+        require(canParticipate, "Airline has not participated yet");
         hasVoted[msg.sender][airlineAddress] = true;
-        votesPerAirline[airlineAddress] = votesPerAirline[airlineAddress] + 1;
+        votesPerAirline[airlineAddress] = votesPerAirline[airlineAddress].add(1);
         emit AirlineVoted(msg.sender, airlineAddress);
     }
 
-    function fundAirline()
+    function getAirlineRegistrationStatus(address _airlineAddress)
     external
+    view
+    isOperational
+    returns(bool)
+    {
+        bool isRegistered;
+        (,isRegistered,,) = flightData.getAirlineData(_airlineAddress);
+        return isRegistered;
+    }
+
+
+    function checkIfVoted(address votingAirline, address votedAirline) 
+    external
+    view
+    isOperational
+    returns(bool)
+    {
+        return hasVoted[votingAirline][votedAirline];
+    }
+
+
+    function fundAirline()
+    public
     payable
     isOperational
     onlyRegisteredAirline
     {
-        flightData.fund(msg.sender, msg.value);
-        address(flightData).transfer(msg.value);
-        uint256 value;
-        (,,,value) = flightData.getAirlineData(msg.sender);
-        require(value >= AIRLINE_PARTICIPATION_FEE, "Make sure you send the correct participation fee");
+        //require(amount >= AIRLINE_PARTICIPATION_FEE, "Make sure you send the correct participation fee");
+        //address dataContractAddress = address(uint160(address(flightData)));
+        //dataContractAddress.transfer(amount);
+        //flightData.fund(msg.sender, amount);
         flightData.setParticipationStatus(msg.sender, true);
-        emit AirlineFullyFunded(msg.sender, value);
+        emit AirlineFullyFunded(msg.sender, msg.value);
     }
 
    /**
@@ -249,15 +273,18 @@ contract FlightSuretyApp {
     function registerFlight(string flightNumber, string timeStamp)
     external
     isOperational
-    onlyParticipatedAirline
+    onlyRegisteredAirline
     {
+        bool canParticipate;
+        (,,canParticipate,) = flightData.getAirlineData(msg.sender);
+        require(canParticipate, "Airline is not fully funded and can't participate");
         bytes32 key = generateKey(msg.sender, flightNumber, timeStamp);
         flightData.registerFlight(msg.sender, key, flightNumber, timeStamp, STATUS_CODE_ON_TIME);
         emit FlightRegistered(msg.sender, flightNumber, timeStamp);
 
     }
     
-    function registerPassenger(address _airlineAddress, string _name, string flightNumber, string timeStamp)
+    function registerPassenger(string _name, address _airlineAddress, string flightNumber, string timeStamp)
     external
     payable
     isOperational
@@ -300,6 +327,28 @@ contract FlightSuretyApp {
         address(flightData).transfer(msg.value);
         flightData.buyInsurance(msg.sender, _airlineAddress, key, msg.value);
     }
+
+    function checkPassengerInsuranceStatus(address passengerAddress, address _airlineAddress, string flightNumber, string timeStamp)
+    external
+    isOperational
+    onlyRegisteredAirline
+    view
+    returns(bool)
+    {   
+        bytes32 flightKey = generateKey(_airlineAddress, flightNumber, timeStamp);
+        return flightData.checkPassengerInsuranceStatus(passengerAddress, flightKey);
+    }
+
+    // function getFlightsPerAirline(address _airlineAddress)
+    // external
+    // view
+    // isOperational
+    // onlyRegisteredAirline
+    // returns(bytes32[] memory)
+    // {
+    //     mapping(address => bytes32[]) memory map = flightData.flightsPerAirline();
+    //     return map[_airlineAddress];
+    // }
 
     
    /**

@@ -1,33 +1,16 @@
 version: '3'
 services:
-  smart-contract-deploy:
-    image: ismail-30/trufflemigrate:latest
-    command: "truffle migrate --reset"
-    depends_on:
-      - "ganache"
   ganache:
     image: trufflesuite/ganache-cli
     ports:
       - "8545:8545"
     container_name: blockchain
-    command: "--accounts 50 --d --e 1000"
-  dapp:
-    build:
-      context: .
-      dockerfile: Dockerfile.dapp
-    command: "npm run dapp"
+    command: "--accounts 50 --d --e 1000 -l 80000000"
+  smart-contract-deploy:
+    image: ismail-30/trufflesuite:latest
+    command: "truffle test"
+    volumes:
+      - /home/node/app/node_modules
+      - .:/home/node/app/
     depends_on:
-      - "smart-contract-deploy"
-    ports:
-      - "8000:8000"
-    network_mode: "host"
-  server:
-    build:
-      context: .
-      dockerfile: Dockerfile.dapp
-    command: "npm run server"
-    depends_on:
-      - "smart-contract-deploy"
-    ports:
-      - "3000:3000"
-    network_mode: "host"
+      - "ganache"

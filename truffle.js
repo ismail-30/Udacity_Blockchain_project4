@@ -11,7 +11,8 @@ module.exports = {
         network_id: "*" // Match any network id      
       },
       network_id: '*',
-      gas: 9999999
+      gas: 80000000,
+      gasPrice: 20000000000
     },
   compilers: {
     solc: {

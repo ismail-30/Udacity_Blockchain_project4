@@ -45,6 +45,7 @@ contract FlightSuretyData {
     mapping(address => Passenger) private passengers;
     mapping(bytes32 => address[]) private passengersPerFlight;
     mapping(address => mapping(bytes32 => bool)) private isInsured;
+    //mapping(address => bytes32[]) public flightsPerAirline;
 
 
     /********************************************************************************************/
@@ -178,6 +179,7 @@ contract FlightSuretyData {
                                 airline: airlines[airlineAddress]
                                 });
         //airlines[airlineAddress].flights.push(key);
+        //flightsPerAirline[airlineAddress].push(key);
         numRegisteredFlights = numRegisteredFlights.add(1);
     }
 
@@ -217,7 +219,6 @@ contract FlightSuretyData {
     */   
     function fund(address _airline, uint256 amount)
     external
-    payable
     isOperational
     {
         airlines[_airline].funds.add(amount);
@@ -277,7 +278,7 @@ contract FlightSuretyData {
     external 
     payable 
     {
-        revert("Please use specific functions to send funds to this contract");
+
     }
 
     function getTotalBalance()
@@ -338,6 +339,15 @@ contract FlightSuretyData {
     isOperational
     {
         airlines[airlineAddress].canParticipate = status;
+    }
+
+    function checkPassengerInsuranceStatus(address passengerAddress, bytes32 flightKey)
+    external
+    isOperational
+    view
+    returns(bool)
+    {
+        return isInsured[passengerAddress][flightKey];
     }
 
 
